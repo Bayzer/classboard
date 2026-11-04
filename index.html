@@ -268,12 +268,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
   <div class="modal" style="max-width:480px">
     <h2>Supabase Cloud Setup</h2>
     <div class="settings-field">
-      <label for="sb-url">Project URL</label>
-      <input id="sb-url" type="url" placeholder="https://your-project.supabase.co" autocomplete="url">
-    </div>
-    <div class="settings-field">
-      <label for="sb-key">Publishable key (or legacy anon key)</label>
-      <input id="sb-key" type="text" placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
+      <div class="settings-help" style="margin:0">Supabase project is preconfigured. Enter your account email and password to connect.</div>
     </div>
     <div class="settings-field">
       <label for="sb-email">Account email</label>
@@ -284,7 +279,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
       <input id="sb-password" type="password" placeholder="Supabase account password" autocomplete="current-password">
     </div>
     <div id="sb-account" class="settings-account">Not connected</div>
-    <p class="settings-help">Your project URL and publishable key are stored in this browser. Your password is only used to sign in and is not saved here. Use a publishable/anon key only — never a service-role or secret key.</p>
+    <p class="settings-help">The Supabase project connection is built into this app. Your password is only used to sign in and is not saved here.</p>
     <div class="modal-actions">
       <button class="btn" id="sb-signout" style="display:none">Sign out</button>
       <button class="btn" id="sb-close">Close</button>
@@ -320,7 +315,10 @@ const COLORS = {
 // ── LOCAL RECOVERY + SUPABASE CLOUD STORAGE ──
 // Local storage is a recovery cache. Supabase is the shared source of truth across PCs and authorized users.
 const STORAGE_KEY = 'classboard-data-v1';
-const SUPABASE_CONFIG_KEY = 'classboard-supabase-config-v1';
+// Public client configuration. Publishable keys are designed for use in browser applications;
+// database access must still be protected by the Supabase table's Row Level Security policies.
+const SUPABASE_URL = 'https://refazcranrfioeookvgk.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_X2BBkQsbcxxkjsZBRMFtqA_SNLVi7Td';
 const CLOUD_TABLE = 'classboard_data';
 let supabaseClient = null;
 let cloudUser = null;
@@ -340,8 +338,7 @@ function readLocalData() {
 }
 
 function readSupabaseConfig() {
-  try { return JSON.parse(localStorage.getItem(SUPABASE_CONFIG_KEY) || 'null') || {}; }
-  catch(e) { return {}; }
+  return { url: SUPABASE_URL, key: SUPABASE_PUBLISHABLE_KEY };
 }
 
 function createSupabaseClient() {
@@ -480,9 +477,6 @@ async function restoreCloudSession() {
 }
 
 function updateCloudSettingsUI() {
-  const cfg = readSupabaseConfig();
-  document.getElementById('sb-url').value = cfg.url || '';
-  document.getElementById('sb-key').value = cfg.key || '';
   const account = document.getElementById('sb-account');
   const connected = !!cloudUser;
   account.textContent = connected ? 'Connected as '+(cloudUser.email || 'Supabase user') : 'Not connected';
@@ -491,15 +485,11 @@ function updateCloudSettingsUI() {
 }
 
 async function connectSupabase() {
-  const url = document.getElementById('sb-url').value.trim().replace(/\/$/,'');
-  const key = document.getElementById('sb-key').value.trim();
   const email = document.getElementById('sb-email').value.trim();
   const password = document.getElementById('sb-password').value;
-  if(!url || !key || !email || !password) { alert('Enter the Project URL, publishable key, email and password.'); return; }
-  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) { alert('That Project URL does not look right. It should look like https://your-project.supabase.co'); return; }
-  if(/^sb_secret_|service_role/i.test(key)) { alert('This looks like a secret/service-role key. Use the publishable key or legacy anon key instead.'); return; }
-  localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify({url,key}));
+  if(!email || !password) { alert('Enter your Supabase account email and password.'); return; }
   supabaseClient = createSupabaseClient();
+  if(!supabaseClient) { alert('Could not initialize the built-in Supabase connection.'); return; }
   cloudReady=false; cloudUser=null;
   const button = document.getElementById('sb-connect');
   button.disabled=true; button.textContent='Connecting…';
