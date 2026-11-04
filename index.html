@@ -23,6 +23,26 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
 
 /* ── LAYOUT ── */
 #app{display:grid;grid-template-rows:56px 1fr;min-height:100vh}
+
+/* ── PRESENTATION MODE ── */
+#btn-present{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer;font-family:var(--font-body);white-space:nowrap}
+#btn-present:hover{border-color:var(--accent);color:var(--text)}
+#presentation-exit{display:none;position:fixed;top:14px;right:14px;z-index:10000;padding:9px 13px;border:1px solid rgba(255,255,255,.25);border-radius:9px;background:rgba(20,22,32,.78);backdrop-filter:blur(8px);color:#fff;font:500 13px var(--font-body);cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#presentation-exit:hover{background:rgba(20,22,32,.95)}
+body.presentation-mode{overflow:hidden}
+body.presentation-mode #app{display:grid!important;grid-template-rows:1fr;height:100vh;min-height:100vh}
+body.presentation-mode #topbar{display:none}
+body.presentation-mode #main{display:grid;grid-template-columns:1fr;height:100vh;min-height:0}
+body.presentation-mode #sidebar{display:none}
+body.presentation-mode #canvas-wrap{height:100vh;min-height:0}
+body.presentation-mode #canvas{height:100%;width:100%}
+body.presentation-mode .widget{border-color:transparent;box-shadow:none}
+body.presentation-mode .widget:hover{box-shadow:none}
+body.presentation-mode .widget.selected{border-color:transparent;box-shadow:none}
+body.presentation-mode .widget-header,
+body.presentation-mode .resize-handle{display:none!important}
+body.presentation-mode #presentation-exit{display:block}
+@media(max-width:760px){#btn-present{padding:6px 8px;font-size:11px}}
 #topbar{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);z-index:100}
 #topbar h1{font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--text);white-space:nowrap}
 #topbar h1 span{color:var(--accent)}
@@ -207,6 +227,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
     <button id="btn-new-screen">＋ New screen</button>
     <div class="topbar-sep"></div>
     <button id="btn-save">☁ Save now</button>
+    <button id="btn-present" title="Show the current screen without editing controls">⛶ Present</button>
     <button id="btn-cloud-setup">⚙ Cloud setup</button>
   </div>
   <div id="main">
@@ -263,6 +284,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
     </div>
   </div>
 </div>
+<button id="presentation-exit" type="button">✕ Exit presentation</button>
 
 <div id="cloud-settings" class="modal-overlay" style="display:none">
   <div class="modal" style="max-width:480px">
@@ -1149,8 +1171,52 @@ function checkEmpty() {
   if(es) es.style.display = Object.keys(widgets).length ? 'none' : 'flex';
 }
 
+// ── PRESENTATION MODE ──
+async function enterPresentationMode() {
+  // Save the current layout before presenting it.
+  if(activeScreenId) saveCurrentScreen();
+  selectWidget(null);
+  document.body.classList.add('presentation-mode');
+  const btn = document.getElementById('btn-present');
+  if(btn) btn.textContent = '⛶ Presenting';
+  try {
+    if(!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch(err) {
+    // CSS presentation mode still works if browser fullscreen is unavailable.
+  }
+}
+function exitPresentationMode() {
+  document.body.classList.remove('presentation-mode');
+  const btn = document.getElementById('btn-present');
+  if(btn) btn.textContent = '⛶ Present';
+  if(document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(()=>{});
+  }
+}
+function togglePresentationMode() {
+  if(document.body.classList.contains('presentation-mode')) exitPresentationMode();
+  else enterPresentationMode();
+}
+
 // ── EVENT WIRING ──
 document.getElementById('btn-new-screen').addEventListener('click', newScreen);
+document.getElementById('btn-present').addEventListener('click', togglePresentationMode);
+document.getElementById('presentation-exit').addEventListener('click', exitPresentationMode);
+document.addEventListener('fullscreenchange', () => {
+  if(!document.fullscreenElement && document.body.classList.contains('presentation-mode')) {
+    document.body.classList.remove('presentation-mode');
+    const btn = document.getElementById('btn-present');
+    if(btn) btn.textContent = '⛶ Present';
+  }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.body.classList.contains('presentation-mode')) {
+    // Browser fullscreen normally exits on Escape; this also handles non-fullscreen fallback.
+    if(!document.fullscreenElement) exitPresentationMode();
+  }
+});
 document.getElementById('btn-save').addEventListener('click', saveCurrentScreen);
 document.getElementById('btn-cloud-setup').addEventListener('click', ()=>{ updateCloudSettingsUI(); document.getElementById('cloud-settings').style.display='flex'; });
 document.getElementById('sb-close').addEventListener('click', ()=>document.getElementById('cloud-settings').style.display='none');
